@@ -1,0 +1,6 @@
+{
+  "name": "GymTrack - Rutina y Registro de Entrenamiento",
+  "description": "Aplicación de registro de ejercicios para rutina de 3 días con control de series, repeticiones, peso, cronómetro de entrenamiento y resúmenes semanales y mensuales.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
