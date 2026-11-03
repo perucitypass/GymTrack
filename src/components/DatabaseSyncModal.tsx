@@ -80,12 +80,23 @@ export const DatabaseSyncModal: React.FC<DatabaseSyncModalProps> = ({
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al conectar con Google';
-      setSyncStatus({
-        type: 'error',
-        message: msg.includes('popup-closed')
-          ? 'La ventana de inicio de sesión fue cerrada.'
-          : msg,
-      });
+      if (msg.includes('unauthorized-domain')) {
+        const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
+        setSyncStatus({
+          type: 'error',
+          message: `Dominio no autorizado (${currentHost}). Ve a Firebase Console > Authentication > Settings > Authorized Domains y agrega "${currentHost}". Mientras tanto, puedes descargar tu Excel directamente abajo.`,
+        });
+      } else if (msg.includes('popup-closed')) {
+        setSyncStatus({
+          type: 'error',
+          message: 'La ventana de inicio de sesión fue cerrada.',
+        });
+      } else {
+        setSyncStatus({
+          type: 'error',
+          message: msg,
+        });
+      }
     } finally {
       setIsLoadingAuth(false);
     }

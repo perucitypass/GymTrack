@@ -18,23 +18,19 @@ import {
   addWorkoutLog,
 } from '../utils/storage';
 import { DEFAULT_ROUTINE } from '../data/defaultRoutine';
-import { RestTimerFloating } from './RestTimerFloating';
 import { DecimalWeightInput } from './DecimalWeightInput';
 import {
   Play,
-  Pause,
   RotateCcw,
   Check,
   Plus,
   Trash2,
   Calendar,
   Clock,
-  Timer,
   Save,
   Flame,
   ChevronDown,
   Dumbbell,
-  ArrowRight,
   Info,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -46,6 +42,16 @@ interface ActiveWorkoutProps {
   initialDayId?: string;
 }
 
+const getElapsedSecondsFromStart = (startIso: string): number => {
+  try {
+    const startMs = new Date(startIso).getTime();
+    if (isNaN(startMs)) return 0;
+    return Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+  } catch {
+    return 0;
+  }
+};
+
 export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
   routineDays,
   onWorkoutSaved,
@@ -55,20 +61,15 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
   const effectiveDays = routineDays && routineDays.length > 0 ? routineDays : DEFAULT_ROUTINE;
   const [selectedDayId, setSelectedDayId] = useState<string>(initialDayId || 'dia-1');
   const [isStarted, setIsStarted] = useState<boolean>(false);
-  const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
+  const [startTime, setStartTime] = useState<string>(() => new Date().toISOString());
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
-  const [startTime, setStartTime] = useState<string>(new Date().toISOString());
-  const [workoutDate, setWorkoutDate] = useState<string>(
+  const [workoutDate, setWorkoutDate] = useState<string>(() =>
     new Date().toISOString().slice(0, 16)
   ); // For input datetime-local
   const [workoutNotes, setWorkoutNotes] = useState<string>('');
   const [exercises, setExercises] = useState<LoggedExercise[]>([]);
-  const [restTimerOpen, setRestTimerOpen] = useState<boolean>(false);
-  const [autoOpenRestTimer, setAutoOpenRestTimer] = useState<boolean>(true);
   const [newExerciseName, setNewExerciseName] = useState<string>('');
   const [showAddCustomModal, setShowAddCustomModal] = useState<boolean>(false);
-
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load from local storage if workout was active
   useEffect(() => {
@@ -76,8 +77,6 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
     if (saved && saved.exercises && saved.exercises.length > 0) {
       setSelectedDayId(saved.routineDayId);
       setIsStarted(true);
-      setIsTimerRunning(saved.isRunning);
-      setElapsedSeconds(saved.elapsedSeconds);
       setStartTime(saved.startTime);
       try {
         setWorkoutDate(new Date(saved.startTime).toISOString().slice(0, 16));
@@ -86,25 +85,45 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
       }
       setWorkoutNotes(saved.notes || '');
       setExercises(saved.exercises);
+
+      // Immediately calculate true wall-clock elapsed time
+      const actualElapsed = getElapsedSecondsFromStart(saved.startTime);
+      setElapsedSeconds(actualElapsed);
     } else {
       // Initialize with Day 1
       loadDayTemplate(initialDayId || 'dia-1');
     }
   }, []);
 
-  // Timer tick
+  // Continuous Wall-Clock synchronization (keeps measuring accurately even when phone screen is locked or asleep)
   useEffect(() => {
-    if (isTimerRunning) {
-      timerRef.current = setInterval(() => {
-        setElapsedSeconds((prev) => prev + 1);
-      }, 1000);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
+    if (!isStarted) {
+      setElapsedSeconds(0);
+      return;
     }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+
+    const syncElapsed = () => {
+      setElapsedSeconds(getElapsedSecondsFromStart(startTime));
     };
-  }, [isTimerRunning]);
+
+    syncElapsed();
+    const interval = setInterval(syncElapsed, 1000);
+
+    const handleWakeOrFocus = () => {
+      syncElapsed();
+    };
+
+    document.addEventListener('visibilitychange', handleWakeOrFocus);
+    window.addEventListener('focus', handleWakeOrFocus);
+    window.addEventListener('pageshow', handleWakeOrFocus);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleWakeOrFocus);
+      window.removeEventListener('focus', handleWakeOrFocus);
+      window.removeEventListener('pageshow', handleWakeOrFocus);
+    };
+  }, [isStarted, startTime]);
 
   // Persist active state to localStorage on changes
   useEffect(() => {
@@ -115,7 +134,7 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
         routineDayName: dayObj ? dayObj.name : 'Entrenamiento',
         startTime,
         elapsedSeconds,
-        isRunning: isTimerRunning,
+        isRunning: true,
         notes: workoutNotes,
         exercises,
       });
@@ -125,7 +144,6 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
     selectedDayId,
     startTime,
     elapsedSeconds,
-    isTimerRunning,
     workoutNotes,
     exercises,
     effectiveDays,
@@ -193,23 +211,20 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
   };
 
   const startWorkout = () => {
-    setIsStarted(true);
-    setIsTimerRunning(true);
     const now = new Date();
-    setStartTime(now.toISOString());
-    setWorkoutDate(now.toISOString().slice(0, 16));
+    const nowIso = now.toISOString();
+    setStartTime(nowIso);
+    setWorkoutDate(nowIso.slice(0, 16));
+    setIsStarted(true);
+    setElapsedSeconds(0);
   };
 
-  const pauseWorkout = () => {
-    setIsTimerRunning(false);
-  };
-
-  const resumeWorkout = () => {
-    setIsTimerRunning(true);
-  };
-
-  const resetTimer = () => {
-    if (window.confirm('¿Reiniciar el cronómetro a 00:00:00?')) {
+  const resetStartTimeToNow = () => {
+    if (window.confirm('¿Reiniciar el tiempo de inicio de entrenamiento a este momento (00:00:00)?')) {
+      const now = new Date();
+      const nowIso = now.toISOString();
+      setStartTime(nowIso);
+      setWorkoutDate(nowIso.slice(0, 16));
       setElapsedSeconds(0);
     }
   };
@@ -223,13 +238,11 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
     setExercises(updated);
 
     if (!isStarted) {
+      const now = new Date();
+      const nowIso = now.toISOString();
+      setStartTime(nowIso);
+      setWorkoutDate(nowIso.slice(0, 16));
       setIsStarted(true);
-      setIsTimerRunning(true);
-    }
-
-    // Auto open rest timer when marking a set as done
-    if (willBeCompleted && autoOpenRestTimer) {
-      setRestTimerOpen(true);
     }
   };
 
@@ -275,18 +288,6 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
     setExercises(updated);
   };
 
-  const addSetToExercise = (exerciseIndex: number) => {
-    const updated = [...exercises];
-    const sets = updated[exerciseIndex].sets;
-    const lastSet = sets[sets.length - 1];
-    sets.push({
-      setNumber: sets.length + 1,
-      weightKg: lastSet ? lastSet.weightKg : 20,
-      reps: lastSet ? lastSet.reps : 12,
-      completed: false,
-    });
-    setExercises(updated);
-  };
 
   const removeSetFromExercise = (exerciseIndex: number, setIndex: number) => {
     const updated = [...exercises];
@@ -374,7 +375,8 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
       // keep
     }
 
-    const durationSec = Math.max(elapsedSeconds, 60); // at least 1 min
+    const calculatedDuration = getElapsedSecondsFromStart(finalStart);
+    const durationSec = Math.max(calculatedDuration, 60); // at least 1 min
     const finalEnd = new Date(
       new Date(finalStart).getTime() + durationSec * 1000
     ).toISOString();
@@ -408,7 +410,6 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
       // ignore
     }
 
-    setIsTimerRunning(false);
     setIsStarted(false);
     setElapsedSeconds(0);
     setWorkoutNotes('');
@@ -425,7 +426,6 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
     ) {
       saveActiveWorkout(null);
       setIsStarted(false);
-      setIsTimerRunning(false);
       setElapsedSeconds(0);
       loadDayTemplate(selectedDayId);
     }
@@ -484,7 +484,7 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
         </div>
 
         {/* Workout Control Bar: Date & Live Stopwatch */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6 pt-5 border-t border-slate-800/80 items-center">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-6 pt-5 border-t border-slate-800/80 items-center">
           {/* Date and time picker */}
           <div className="flex items-center gap-2.5 bg-slate-950/60 px-3.5 py-2.5 rounded-xl border border-slate-800 text-slate-300">
             <Calendar className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -498,89 +498,67 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
                 onChange={(e) => {
                   setWorkoutDate(e.target.value);
                   try {
-                    setStartTime(new Date(e.target.value).toISOString());
+                    const newD = new Date(e.target.value);
+                    if (!isNaN(newD.getTime())) {
+                      const iso = newD.toISOString();
+                      setStartTime(iso);
+                      setElapsedSeconds(getElapsedSecondsFromStart(iso));
+                    }
                   } catch {
                     // ignore
                   }
                 }}
-                className="bg-transparent text-xs text-white font-medium focus:outline-none w-full"
+                className="bg-transparent text-xs text-white font-medium focus:outline-none w-full font-mono-nums"
               />
             </div>
           </div>
 
-          {/* Live Workout Stopwatch */}
-          <div className="flex items-center justify-between bg-slate-950/60 px-4 py-2 rounded-xl border border-slate-800">
-            <div className="flex items-center gap-2.5">
-              <Clock
-                className={`w-4 h-4 ${
-                  isTimerRunning ? 'text-emerald-400 animate-pulse' : 'text-slate-400'
-                }`}
-              />
+          {/* Live Total Workout Time (Wall-Clock based) */}
+          <div className="flex items-center justify-between bg-slate-950/60 px-4 py-2.5 rounded-xl border border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 shrink-0">
+                <Clock className={`w-4 h-4 ${isStarted ? 'text-emerald-400 animate-pulse' : 'text-slate-400'}`} />
+              </div>
               <div>
-                <span className="block text-[10px] text-slate-400 font-medium uppercase leading-none mb-0.5">
-                  Tiempo Entrenando
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="block text-[10px] text-slate-400 font-medium uppercase leading-none">
+                    Tiempo Total de Entrenamiento
+                  </span>
+                  {isStarted && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                      En vivo
+                    </span>
+                  )}
+                </div>
                 <span className="text-xl font-bold font-mono-nums text-white tracking-wider">
                   {formatStopwatch(elapsedSeconds)}
                 </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-1">
-              {isTimerRunning ? (
+            <div className="flex items-center gap-1.5">
+              {!isStarted ? (
                 <button
-                  onClick={pauseWorkout}
-                  className="p-2 rounded-lg bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 transition-colors"
-                  title="Pausar cronómetro"
+                  type="button"
+                  onClick={startWorkout}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-slate-950 text-xs font-bold transition-all cursor-pointer shadow-sm"
+                  title="Iniciar cronómetro de entrenamiento"
                 >
-                  <Pause className="w-4 h-4" />
+                  <Play className="w-3.5 h-3.5 fill-slate-950" />
+                  <span>Iniciar</span>
                 </button>
               ) : (
                 <button
-                  onClick={isStarted ? resumeWorkout : startWorkout}
-                  className="p-2 rounded-lg bg-emerald-500 text-slate-950 hover:bg-emerald-400 transition-colors"
-                  title="Iniciar cronómetro"
+                  type="button"
+                  onClick={resetStartTimeToNow}
+                  className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
+                  title="Reiniciar hora de inicio a este momento"
                 >
-                  <Play className="w-4 h-4 fill-slate-950" />
+                  <RotateCcw className="w-3.5 h-3.5" />
                 </button>
               )}
-              <button
-                onClick={resetTimer}
-                className="p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
-                title="Reiniciar cronómetro"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
             </div>
-          </div>
-
-          {/* Rest Timer Quick Launcher & Options */}
-          <div className="flex items-center justify-between bg-slate-950/60 px-4 py-2.5 rounded-xl border border-slate-800">
-            <div className="flex items-center gap-2">
-              <Timer className="w-4 h-4 text-emerald-400" />
-              <div>
-                <span className="block text-[10px] text-slate-400 font-medium uppercase leading-none mb-1">
-                  Descanso
-                </span>
-                <button
-                  onClick={() => setRestTimerOpen(true)}
-                  className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer"
-                >
-                  <span>Abrir Temporizador</span>
-                  <ArrowRight className="w-3 h-3" />
-                </button>
-              </div>
-            </div>
-
-            <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-400 select-none">
-              <input
-                type="checkbox"
-                checked={autoOpenRestTimer}
-                onChange={(e) => setAutoOpenRestTimer(e.target.checked)}
-                className="rounded border-slate-700 text-emerald-500 focus:ring-0 bg-slate-900 w-3.5 h-3.5"
-              />
-              <span>Auto-abrir al terminar serie</span>
-            </label>
           </div>
         </div>
 
@@ -779,23 +757,14 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
               </table>
             </div>
 
-            {/* Exercise Footer: Add set & note */}
-            <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-800/80">
-              <button
-                type="button"
-                onClick={() => addSetToExercise(exerciseIdx)}
-                className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-lg transition-colors cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Agregar Serie</span>
-              </button>
-
+            {/* Exercise Footer: Note input */}
+            <div className="mt-3 pt-3 border-t border-slate-800/80">
               <input
                 type="text"
                 placeholder="Añadir nota de sensaciones (opcional)..."
                 value={exercise.notes || ''}
                 onChange={(e) => updateExerciseNotes(exerciseIdx, e.target.value)}
-                className="bg-slate-950/50 border border-slate-800 focus:border-slate-700 text-xs text-slate-300 px-3 py-1 rounded-lg w-full sm:w-72 focus:outline-none placeholder:text-slate-600"
+                className="bg-slate-950/50 border border-slate-800 focus:border-slate-700 text-xs text-slate-300 px-3 py-1.5 rounded-lg w-full focus:outline-none placeholder:text-slate-600"
               />
             </div>
           </div>
@@ -908,12 +877,6 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
         </div>
       </div>
 
-      {/* Floating Rest Timer */}
-      <RestTimerFloating
-        isOpen={restTimerOpen}
-        onClose={() => setRestTimerOpen(false)}
-        initialSeconds={90}
-      />
     </div>
   );
 };

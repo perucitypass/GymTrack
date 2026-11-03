@@ -47,18 +47,34 @@ export default function App() {
     }
   }, []);
 
-  // Poll active workout duration if active
+  // Poll active workout duration if active with real wall-clock time
   useEffect(() => {
-    const interval = setInterval(() => {
+    const updateActiveDuration = () => {
       const active = loadActiveWorkout();
       if (active && active.exercises && active.exercises.length > 0) {
         setIsWorkoutActive(true);
-        setActiveWorkoutDuration(formatStopwatch(active.elapsedSeconds));
+        const startMs = active.startTime ? new Date(active.startTime).getTime() : NaN;
+        const elapsed = !isNaN(startMs)
+          ? Math.max(0, Math.floor((Date.now() - startMs) / 1000))
+          : (active.elapsedSeconds || 0);
+        setActiveWorkoutDuration(formatStopwatch(elapsed));
       } else {
         setIsWorkoutActive(false);
       }
-    }, 1000);
-    return () => clearInterval(interval);
+    };
+
+    updateActiveDuration();
+    const interval = setInterval(updateActiveDuration, 1000);
+    document.addEventListener('visibilitychange', updateActiveDuration);
+    window.addEventListener('focus', updateActiveDuration);
+    window.addEventListener('pageshow', updateActiveDuration);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', updateActiveDuration);
+      window.removeEventListener('focus', updateActiveDuration);
+      window.removeEventListener('pageshow', updateActiveDuration);
+    };
   }, []);
 
   const [targetDayId, setTargetDayId] = useState<string>('dia-1');
