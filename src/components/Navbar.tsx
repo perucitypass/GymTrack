@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActiveTab } from '../types/gym';
-import { Dumbbell, Calendar, BarChart3, Clock, Play, FileSpreadsheet, Smartphone } from 'lucide-react';
+import { Dumbbell, Calendar, BarChart3, Clock, Play, FileSpreadsheet, Smartphone, Database } from 'lucide-react';
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -118,10 +118,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               type="button"
               onClick={onOpenDatabaseModal}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-semibold transition-all cursor-pointer shadow-sm"
-              title="Consolidar base de datos en Google Sheets o Excel"
+              title="Sincronizar en Supabase Cloud, Google Sheets o descargar Excel"
             >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-              <span className="hidden sm:inline">Sheets / Excel</span>
+              <Database className="w-4 h-4 text-emerald-400" />
+              <span className="hidden sm:inline">Nube / Backup</span>
             </button>
 
             {isWorkoutActive ? (

@@ -18,6 +18,7 @@ import {
   addWorkoutLog,
 } from '../utils/storage';
 import { DEFAULT_ROUTINE } from '../data/defaultRoutine';
+import { syncLogsToSupabase } from '../utils/supabase';
 import { DecimalWeightInput } from './DecimalWeightInput';
 import {
   Play,
@@ -398,6 +399,9 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
     // Save directly to real history
     addWorkoutLog(newLog);
     saveActiveWorkout(null); // Clear active
+
+    // Silent background sync to Supabase
+    syncLogsToSupabase([newLog]).catch(() => {});
 
     // Trigger celebratory confetti
     try {

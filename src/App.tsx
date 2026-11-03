@@ -154,11 +154,12 @@ export default function App() {
         onWorkoutAdded={refreshLogs}
       />
 
-      {/* Google Sheets and Excel Database Consolidation Modal */}
+      {/* Google Sheets, Supabase and Excel Database Consolidation Modal */}
       <DatabaseSyncModal
         isOpen={databaseModalOpen}
         onClose={() => setDatabaseModalOpen(false)}
         logs={logs}
+        onLogsChanged={refreshLogs}
       />
 
       {/* Share & Mobile Access Modal */}
