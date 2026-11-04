@@ -438,7 +438,7 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
   const currentDayObj = effectiveDays.find((d) => d.id === selectedDayId) || effectiveDays[0];
 
   return (
-    <div className="pb-36 pt-4 max-w-5xl mx-auto px-4 sm:px-6">
+    <div className="pb-44 md:pb-28 pt-2 sm:pt-4 max-w-5xl mx-auto px-3 sm:px-6 w-full max-w-full overflow-hidden">
       {/* Top Banner / Day Selector */}
       <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 sm:p-6 mb-6 shadow-xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -635,8 +635,8 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
             </div>
 
             {/* Sets Table */}
-            <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-              <table className="w-full text-left text-sm">
+            <div className="overflow-x-auto w-full -mx-1 sm:mx-0 px-1 sm:px-0">
+              <table className="w-full text-left text-sm min-w-[320px]">
                 <thead>
                   <tr className="text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-800/80">
                     <th className="pb-2 w-14 text-center">Serie</th>
@@ -832,8 +832,8 @@ export const ActiveWorkout: React.FC<ActiveWorkoutProps> = ({
         </div>
       </div>
 
-      {/* Sticky Bottom Bar for Final Action (Pattern Layout C from Mobile Skill) */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 p-4 bg-gradient-to-t from-slate-950 via-slate-950/95 to-transparent border-t border-slate-800/80 backdrop-blur-md">
+      {/* Sticky Bottom Bar for Final Action (Positioned cleanly above mobile nav bar) */}
+      <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-30 p-3 sm:p-4 bg-slate-950/95 border-t border-slate-800/90 backdrop-blur-md shadow-2xl">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           {/* Quick Summary Pill / Metadata */}
           <div className="flex items-center gap-4 text-xs text-slate-300 w-full sm:w-auto justify-between sm:justify-start">

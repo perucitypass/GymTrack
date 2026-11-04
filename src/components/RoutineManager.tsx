@@ -172,7 +172,7 @@ export const RoutineManager: React.FC<RoutineManagerProps> = ({
   };
 
   return (
-    <div className="pb-32 pt-4 max-w-5xl mx-auto px-4 sm:px-6">
+    <div className="pb-32 pt-3 sm:pt-4 max-w-5xl mx-auto px-3 sm:px-6 w-full max-w-full overflow-hidden">
       {/* Top Routine Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
